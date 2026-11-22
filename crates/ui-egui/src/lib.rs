@@ -2019,6 +2019,10 @@ impl SolveApp {
             Ok(value)
         });
         crate::sketch_view::project(self);
+        if r.is_ok() && self.session.active_sketch.is_some() && !self.sketch_finish_processing {
+            let before = self.settled_cam();
+            self.note_opened_sketch(before);
+        }
         self.finish_command(id, &r);
         plugin_events::command_completed(self, id, r.is_ok());
         if matches!(id, "select.mode" | "select.filter") {
@@ -3264,13 +3268,25 @@ impl SolveApp {
     /// Turn the view to face the sketch just opened, unless the "Turn to face a sketch when it
     /// opens" preference is off, and remember the view from `before` it and the one facing it for
     /// when the sketch ends (#7038). Returns whether the view turned.
+    /// The person opened a sketch: turn its view to face it when Preferences say so, and save the
+    /// view from before for when it ends. Replaces what [`Self::note_opened_sketch`] saved for it.
     pub(crate) fn look_at_opened_sketch(&mut self, before: Camera) -> bool {
+        self.pre_sketch_cam = self.pre_sketch_cam.filter(|pre| Some(pre.sketch) != self.session.active_sketch);
+        self.save_opened_sketch_view(before, self.preferences.sketch_open_look_at)
+    }
+
+    /// A command opened a sketch: the view stays as it is (a script never turns it), but the
+    /// sketch's exit view is saved, so ending it follows the same preference.
+    pub(crate) fn note_opened_sketch(&mut self, before: Camera) -> bool {
+        self.save_opened_sketch_view(before, false)
+    }
+
+    fn save_opened_sketch_view(&mut self, before: Camera, turn: bool) -> bool {
         let Some((view, sketch)) = self.session.sketching_view.zip(self.session.active_sketch) else { return false };
         if self.pre_sketch_cam.is_some_and(|pre| pre.sketch == sketch && pre.view == view) {
             return false;
         }
         let painted = self.viewport.compass_view.unwrap_or_else(|| self.docs.views.active().id);
-        let turn = self.preferences.sketch_open_look_at;
         let _ = documents::with_sketch_camera(self, view, |app| {
             let before = if painted == view { before } else { app.settled_cam() };
             if turn {

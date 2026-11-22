@@ -940,7 +940,9 @@ fn starting_a_sketch_in_another_window_changes_only_the_destination_camera() {
     assert_eq!(app.docs.views.active().id, caller);
     assert_eq!(app.cam, caller_camera);
     let destination = app.docs.views.views_of(window).unwrap().get(owner).unwrap().spec.unwrap().camera;
-    assert_ne!(destination, before, "the destination enters the sketch plane");
+    // A sketch a command opens leaves every view where it is (the owner's call on scripted
+    // sketches); its exit view is still saved for the destination alone.
+    assert_eq!(destination, before, "a command doesn't turn the destination");
     assert_eq!(app.pre_sketch_cam.unwrap().before, before);
     assert_eq!(app.pre_sketch_cam.unwrap().view, owner);
     app.run("sketch.finish", json!({})).unwrap();
